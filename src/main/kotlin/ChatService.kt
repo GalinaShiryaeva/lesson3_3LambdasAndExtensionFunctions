@@ -1,16 +1,10 @@
-import java.util.function.Predicate
-
 object ChatService {
 
     var chats = mutableListOf<Chat>()
-    var messages = mutableListOf<Message>()
 
     fun getUnreadChatsCount(): Int {
         return chats
-            .count {
-                it.messages
-                    .any { !it.isRead }
-            }
+            .count { it.messages.any { !it.isRead } }
     }
 
     fun getChats(userId: Int): List<Chat> {
@@ -23,71 +17,57 @@ object ChatService {
         val chat = chats.find { it.id == chatId } ?: error("Chat not found")
 
         return chat.messages
+            .filter { it.chatId == chatId }
             .sortedBy { it.id }
-            //.dropWhile { it.id < lastMessageId }
-            .filter { it.id > lastMessageId } // or .dropWhile { it.id < lastMessageId }
+            .filter { it.id >= lastMessageId }
             .take(countMessages)
             .onEach { it.isRead = true }
-
     }
 
     fun sendMessage(message: Message): Boolean {
-        if (chats.isEmpty() || chats.any { it.id != message.chatId }) {
-            chats += Chat(message.chatId, message.fromUserId, message.toUserId, mutableListOf())
-            if (messages.none { it.id == message.id }) {
-                messages += message
-            }
-            return true
+        val chat = chats
+            .find { it.id == message.chatId } ?: error("Chat with id[${message.chatId}] not found")
+        if (chat.messages.none { it.id == message.id }) {
+            chat.messages += message
         }
-        return false
+        return true
     }
 
-
     fun deleteMessage(message: Message): Boolean {
-        val chatId = message.chatId
-        messages.removeIf(Predicate { it.id == message.id })
-        chats
-            .first { it.id == chatId }
-            .run {
-                if (this.messages.isEmpty()) {
-                    return chats.remove(this)
-                }
-            }
-        return false
+        val chat = chats.find { it.id == message.chatId } ?: return false
+        chat.messages.find { it.id == message.id } ?: return false
+
+        chat.messages = chat.messages.filter { it.id != message.id } as MutableList<Message>
+        if (chat.messages.isEmpty()) {
+            chats.remove(chat)
+        }
+        return true
     }
 
     fun deleteChat(chatId: Int): Boolean {
-        messages = messages
+        val chat = chats.find { it.id == chatId } ?: error("Chat not found")
+
+        chat.messages = chat.messages
             .filter { it.chatId != chatId }
             .toMutableList()
         chats = chats
-            .filter { it.id != chatId } as MutableList<Chat>
+            .filter { it.id != chatId }
+            .toMutableList()
         return true
     }
 
     fun edit(message: Message, text: String): Message {
-        return messages
-            .filter { it.id == message.id }
-            .map { it.text = text }
-            .first() as Message
+        val chat = chats.find { it.id == message.chatId } ?: error("Chat not found")
+        val msg = chat.messages.find { it.id == message.id } ?: error("Message not found")
+        msg.text = text
+        return msg
     }
 
-    fun deleteMessage(messageId: Int): Boolean {
-        messages = messages.filter { it.id != messageId } as MutableList<Message>
-        return true
-    }
-
-    fun createChat(chat: Chat): Boolean {
-        chats += chat
-        return true
-    }
-
-    fun getChatById(id: Int): Chat? {
-        return chats.find { it.id == id }
+    fun getChatById(id: Int): Chat {
+        return chats.find { it.id == id } ?: error("Chat not found")
     }
 
     fun getAllChats(userId: Int): List<Chat> {
-        return chats
-            .filter { it.fromUserId == userId }
+        return chats.filter { it.fromUserId == userId || it.toUserId == userId}
     }
 }
