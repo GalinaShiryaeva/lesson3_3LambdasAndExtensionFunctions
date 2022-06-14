@@ -17,11 +17,13 @@ object ChatService {
         val chat = chats.find { it.id == chatId } ?: error("Chat not found")
 
         return chat.messages
+            .asSequence()
             .filter { it.chatId == chatId }
             .sortedBy { it.id }
             .filter { it.id >= lastMessageId }
             .take(countMessages)
             .onEach { it.isRead = true }
+            .toList()
     }
 
     fun sendMessage(message: Message): Boolean {
